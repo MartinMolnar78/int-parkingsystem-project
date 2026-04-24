@@ -1,27 +1,69 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-    HOURS,
-    getAverageCarsForHour,
-    getAverageOccupancyPercentForHour,
-    historicalOccupancyByHour,
+  HOURS,
+  TOTAL_SPOTS,
+  getHistoricalOccupancyByHour,
 } from "../../data/historicalStats";
-import { HourValue } from "../../types/stats";
+import { DayOccupancy, HistoricalOccupancyByHour, HourValue } from "../../types/stats";
 import WeeklyBarChart from "./WeeklyBarChart";
+
 export default function OccupancyByHourSlide() {
   const [selectedHour, setSelectedHour] = useState<HourValue>(8);
+  const [historicalData, setHistoricalData] = useState<HistoricalOccupancyByHour | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const chartData = historicalOccupancyByHour[selectedHour];
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const averageCars = useMemo(
-    () => getAverageCarsForHour(selectedHour),
-    [selectedHour],
-  );
+        const data = await getHistoricalOccupancyByHour();
+        setHistoricalData(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const averagePercent = useMemo(
-    () => getAverageOccupancyPercentForHour(selectedHour),
-    [selectedHour],
-  );
+    loadHistoricalData();
+  }, []);
+
+  const chartData: DayOccupancy[] = useMemo(() => {
+    if (!historicalData) return [];
+    return historicalData[selectedHour] ?? [];
+  }, [historicalData, selectedHour]);
+
+  const averageCars = useMemo(() => {
+    if (!chartData.length) return 0;
+    const totalCars = chartData.reduce((sum, item) => sum + item.cars, 0);
+    return Number((totalCars / chartData.length).toFixed(0));
+  }, [chartData]);
+
+  const averagePercent = useMemo(() => {
+    return Math.round((averageCars / TOTAL_SPOTS) * 100);
+  }, [averageCars]);
+
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Vyťaženosť parkoviska</Text>
+        <Text style={styles.subtitle}>Načítavam historické dáta...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Vyťaženosť parkoviska</Text>
+        <Text style={styles.subtitle}>Chyba: {error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>

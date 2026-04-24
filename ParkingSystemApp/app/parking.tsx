@@ -1,21 +1,61 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import ParkingFloorMap from "../components/ParkingFloorMap";
-import { getFreeCount, parkingData } from "../data/parkingData";
+import { getFreeCount, getParkingData } from "../data/parkingData";
+import { Spot } from "../types/parking";
 
 export default function ParkingScreen() {
   const [selectedFloor, setSelectedFloor] = useState<1 | 2 | 3>(1);
+  const [parkingData, setParkingData] = useState<Record<1 | 2 | 3, Spot[]> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadParkingData = async () => {
+      try {
+        const data = await getParkingData();
+        setParkingData(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      }
+    };
+
+    loadParkingData();
+
+    const interval = setInterval(loadParkingData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerBox}>
+          <Text style={styles.errorText}>Chyba: {error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!parkingData) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerBox}>
+          <Text style={styles.loadingText}>Načítavam parkovacie miesta...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const currentSpots = parkingData[selectedFloor];
+  const freeCount = getFreeCount(currentSpots);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -29,7 +69,7 @@ export default function ParkingScreen() {
 
         <Text style={styles.screenTitle}>Parkovacie miesta</Text>
         <Text style={styles.screenSubtitle}>
-          Poschodie {selectedFloor} • {getFreeCount(currentSpots)} / 12 voľných
+          Poschodie {selectedFloor} • {freeCount} / 12 voľných
         </Text>
 
         <View style={styles.floorSelector}>
@@ -88,6 +128,21 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingBottom: 40,
+  },
+  centerBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#4b5563",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#dc2626",
+    textAlign: "center",
   },
   headerRow: {
     marginBottom: 8,
