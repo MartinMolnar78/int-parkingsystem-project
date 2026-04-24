@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { HOURS } from "../../data/historicalStats";
 import { getPredictionsForHour } from "../../data/predictionData";
-import { ParkingFloor } from "../../types/prediction";
+import { FloorPrediction, ParkingFloor } from "../../types/prediction";
 import { HourValue } from "../../types/stats";
 
 const FLOOR_PAGE_HEIGHT = 380;
@@ -18,17 +18,33 @@ const FLOOR_PAGE_HEIGHT = 380;
 export default function PredictionByHourSlide() {
   const [selectedHour, setSelectedHour] = useState<HourValue>(8);
   const [activeFloor, setActiveFloor] = useState<ParkingFloor>(1);
+  const [predictions, setPredictions] = useState<FloorPrediction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const floorScrollRef = useRef<ScrollView | null>(null);
 
-  const predictions = useMemo(
-    () => getPredictionsForHour(selectedHour),
-    [selectedHour],
-  );
+  useEffect(() => {
+    const loadPredictions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const currentFloorPrediction = predictions.find(
-    (item) => item.floor === activeFloor,
-  )!;
+        const data = await getPredictionsForHour(selectedHour);
+        setPredictions(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPredictions();
+  }, [selectedHour]);
+
+  const currentFloorPrediction = useMemo(() => {
+    return predictions.find((item) => item.floor === activeFloor) ?? null;
+  }, [predictions, activeFloor]);
 
   const handleFloorScrollEnd = (
     event: NativeSyntheticEvent<NativeScrollEvent>,
@@ -38,6 +54,33 @@ export default function PredictionByHourSlide() {
     const nextFloor = (index + 1) as ParkingFloor;
     setActiveFloor(nextFloor);
   };
+
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Predikcia voľných miest</Text>
+        <Text style={styles.subtitle}>Načítavam predikcie...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Predikcia voľných miest</Text>
+        <Text style={styles.subtitle}>Chyba: {error}</Text>
+      </View>
+    );
+  }
+
+  if (!currentFloorPrediction) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Predikcia voľných miest</Text>
+        <Text style={styles.subtitle}>Predikcie sa nenašli.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -86,6 +129,7 @@ export default function PredictionByHourSlide() {
               <Text style={styles.floorTitle}>
                 Poschodie {prediction.floor}
               </Text>
+
               <View style={styles.occupancyBox}>
                 <Text style={styles.occupancyBoxLabel}>
                   Predpokladaná obsadenosť
@@ -159,29 +203,6 @@ const styles = StyleSheet.create({
   hourChipTextActive: {
     color: "#ffffff",
   },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 14,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: "#f9fafb",
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    marginHorizontal: 4,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginBottom: 6,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-  },
   floorPagerWrapper: {
     height: FLOOR_PAGE_HEIGHT,
     marginTop: 16,
@@ -196,12 +217,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#111827",
-  },
-  floorDescription: {
-    fontSize: 14,
-    color: "#6b7280",
-    lineHeight: 20,
-    marginTop: 6,
   },
   occupancyBox: {
     alignSelf: "flex-start",
@@ -227,14 +242,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
   },
-
   spotsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginTop: 14,
   },
-
   spotCard: {
     width: "48%",
     minHeight: 96,

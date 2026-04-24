@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -10,13 +10,50 @@ import {
   View,
 } from "react-native";
 import StatsCarousel from "../components/stats/StatsCarousel";
-import { getFreeCount, parkingData } from "../data/parkingData";
+import { getFreeCount, getParkingData } from "../data/parkingData";
+import { Spot } from "../types/parking";
 
 export default function HomeScreen() {
-  const totalFree =
-    getFreeCount(parkingData[1]) +
-    getFreeCount(parkingData[2]) +
-    getFreeCount(parkingData[3]);
+  const [parkingData, setParkingData] = useState<Record<1 | 2 | 3, Spot[]> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadParkingData = async () => {
+      try {
+        const data = await getParkingData();
+        setParkingData(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      }
+    };
+
+    loadParkingData();
+  }, []);
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerBox}>
+          <Text style={styles.errorText}>Chyba: {error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!parkingData) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerBox}>
+          <Text style={styles.loadingText}>Načítavam parkovanie...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const floor1Free = getFreeCount(parkingData[1]);
+  const floor2Free = getFreeCount(parkingData[2]);
+  const floor3Free = getFreeCount(parkingData[3]);
+  const totalFree = floor1Free + floor2Free + floor3Free;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -33,23 +70,17 @@ export default function HomeScreen() {
         <View style={styles.floorInfoWrapper}>
           <View style={styles.floorInfoCard}>
             <Text style={styles.floorInfoTitle}>Poschodie 1</Text>
-            <Text style={styles.floorInfoValue}>
-              {getFreeCount(parkingData[1])} / 12 voľných
-            </Text>
+            <Text style={styles.floorInfoValue}>{floor1Free} / 12 voľných</Text>
           </View>
 
           <View style={styles.floorInfoCard}>
             <Text style={styles.floorInfoTitle}>Poschodie 2</Text>
-            <Text style={styles.floorInfoValue}>
-              {getFreeCount(parkingData[2])} / 12 voľných
-            </Text>
+            <Text style={styles.floorInfoValue}>{floor2Free} / 12 voľných</Text>
           </View>
 
           <View style={styles.floorInfoCard}>
             <Text style={styles.floorInfoTitle}>Poschodie 3</Text>
-            <Text style={styles.floorInfoValue}>
-              {getFreeCount(parkingData[3])} / 12 voľných
-            </Text>
+            <Text style={styles.floorInfoValue}>{floor3Free} / 12 voľných</Text>
           </View>
         </View>
 
@@ -74,6 +105,21 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingBottom: 40,
+  },
+  centerBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#4b5563",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#dc2626",
+    textAlign: "center",
   },
   appTitle: {
     fontSize: 30,
